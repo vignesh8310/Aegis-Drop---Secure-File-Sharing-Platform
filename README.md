@@ -83,7 +83,6 @@ $$\text{CipherChunk}_i = \text{AES-256-CBC}(K_{\text{enc}}, \text{IV}_i, \text{P
 Concurrently, an incremental HMAC state calculates:
 
 $$\text{Tag} = \text{HMAC-SHA256}(K_{\text{mac}}, \text{CipherChunks} \mathbin{\Vert} \text{BaseIV} \mathbin{\Vert} \text{EncryptedMetadata})$$
-
 ---
 
 ## Technical Specifications
