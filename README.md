@@ -58,17 +58,16 @@ Conventional file transfer protocols force an unacceptable trade-off between **c
 ```
 
 ---
-
 ## Cryptographic Architecture
 
 ### 1. Split-Key Mathematical Derivation
 When an author inputs a custom passphrase $K$ (e.g., `falcon-orbit-99`), the client browser computes three domain-separated cryptographic branches:
 
-$$\text{Routing Hash } (H_{\text{route}}) = \text{SHA-256}(K \mathbin{\Vert} \text{ROUTE\_SALT})$$
+$$H_{\text{route}} = \text{SHA-256}(K \parallel \text{Salt}_{\text{route}})$$
 
-$$\text{Encryption Key } (K_{\text{enc}}) = \text{PBKDF2-SHA256}(K, \text{CRYPTO\_SALT}, 1000, 256)$$
+$$K_{\text{enc}} = \text{PBKDF2-SHA256}(K, \text{Salt}_{\text{crypto}}, 1000, 256)$$
 
-$$\text{Integrity Key } (K_{\text{mac}}) = \text{PBKDF2-SHA256}(K, \text{MAC\_SALT}, 1000, 256)$$
+$$K_{\text{mac}} = \text{PBKDF2-SHA256}(K, \text{Salt}_{\text{mac}}, 1000, 256)$$
 
 * $H_{\text{route}}$ is transmitted across the network so the server can index the vault.
 * $K_{\text{enc}}$ and $K_{\text{mac}}$ remain strictly inside client RAM.
@@ -82,7 +81,7 @@ $$\text{CipherChunk}_i = \text{AES-256-CBC}(K_{\text{enc}}, \text{IV}_i, \text{P
 
 Concurrently, an incremental HMAC state calculates:
 
-$$\text{Tag} = \text{HMAC-SHA256}(K_{\text{mac}}, \text{CipherChunks} \mathbin{\Vert} \text{BaseIV} \mathbin{\Vert} \text{EncryptedMetadata})$$
+$$\text{Tag} = \text{HMAC-SHA256}(K_{\text{mac}}, \text{CipherChunks} \parallel \text{BaseIV} \parallel \text{EncryptedMetadata})$$
 ---
 
 ## Technical Specifications
