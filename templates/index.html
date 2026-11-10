@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>AegisDrop | Zero-Knowledge Cloud Relay</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- CryptoJS for Client-Side AES-256, PBKDF2, SHA-256, HMAC -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+  <!-- Pako for Client-Side Deflate Compression -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+  <!-- QRCode.js for Instant Mobile Connection -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <style>
+    @keyframes pulseFlow {
+      0% { stroke-dashoffset: 24; }
+      100% { stroke-dashoffset: 0; }
+    }
+    .flow-line-active {
+      stroke-dasharray: 6 6;
+      animation: pulseFlow 0.6s linear infinite;
+    }
+    .glass {
+      background: rgba(15, 23, 42, 0.82);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(148, 163, 184, 0.14);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans selection:bg-cyan-500 selection:text-slate-950 pb-8">
+
+  <!-- MOBILE-OPTIMIZED TOP NAVIGATION -->
+  <header class="border-b border-slate-800/80 bg-slate-900/75 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="p-1.5 sm:p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+            <i data-lucide="shield-check" class="w-5 h-5 sm:w-6 sm:h-6"></i>
+          </div>
+          <div>
+            <h1 class="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
+              AegisDrop
+              <span class="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-mono">
+                ZERO-KNOWLEDGE
+              </span>
+            </h1>
+            <p class="hidden sm:block text-xs text-slate-400">Split-Hash Client Cryptography • Ephemeral Burn-on-Read Cloud</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3-Column Mobile Role Selector -->
+      <div class="grid grid-cols-3 bg-slate-900 p-1 rounded-xl border border-slate-800 w-full sm:w-auto gap-1">
+        <button onclick="switchRole('sender')" id="tab-sender" class="role-tab flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20">
+          <i data-lucide="upload-cloud" class="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"></i>
+          <span>Sender</span>
+        </button>
+        <button onclick="switchRole('cloud')" id="tab-cloud" class="role-tab flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all text-slate-400 hover:text-white">
+          <i data-lucide="server" class="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"></i>
+          <span>Cloud</span>
+        </button>
+        <button onclick="switchRole('receiver')" id="tab-receiver" class="role-tab flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all text-slate-400 hover:text-white">
+          <i data-lucide="download-cloud" class="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"></i>
+          <span>Receiver</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- CLEAN 3-NODE TOPOLOGY BAR -->
+  <div class="max-w-7xl mx-auto px-3 sm:px-6 mt-3 sm:mt-4">
+    <div class="glass rounded-xl sm:rounded-2xl px-3 py-2.5 sm:p-4">
+      <div class="flex items-center justify-between gap-2">
+        <div class="hidden md:flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-slate-400">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+          <span class="w-2 h-2 rounded-full bg-emerald-400 -ml-4"></span>
+          Live 3-Node Mesh
+        </div>
+
+        <!-- Responsive 3-Node Visual Flow -->
+        <div class="flex items-center justify-center gap-1.5 sm:gap-3 w-full md:w-auto">
+          <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 text-[11px] sm:text-xs font-medium">
+            <i data-lucide="laptop" class="w-3.5 h-3.5 text-cyan-400 shrink-0"></i>
+            <span>Sender</span>
+          </div>
+
+          <svg width="36" height="12" class="sm:w-[65px] overflow-visible shrink-0">
+            <line id="beam-s2c" x1="0" y1="6" x2="100%" y2="6" stroke="#334155" stroke-width="2.5" stroke-linecap="round" />
+          </svg>
+
+          <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 text-[11px] sm:text-xs font-medium">
+            <i data-lucide="cloud-cog" class="w-3.5 h-3.5 text-purple-400 shrink-0"></i>
+            <span>Cloud (<span id="ribbon-vault-count">0</span>)</span>
+          </div>
+
+          <svg width="36" height="12" class="sm:w-[65px] overflow-visible shrink-0">
+            <line id="beam-c2r" x1="0" y1="6" x2="100%" y2="6" stroke="#334155" stroke-width="2.5" stroke-linecap="round" />
+          </svg>
+
+          <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 text-[11px] sm:text-xs font-medium">
+            <i data-lucide="smartphone" class="w-3.5 h-3.5 text-emerald-400 shrink-0"></i>
+            <span>Receiver</span>
+          </div>
+        </div>
+
+        <!-- Status Pill ONLY visible on Cloud Command Center -->
+        <div id="live-status-pill" class="hidden text-xs font-mono text-cyan-300 bg-cyan-950/50 border border-cyan-800/50 px-3 py-1 rounded-lg truncate max-w-xs">
+          Monitoring Cloud Vaults
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT AREA -->
+  <main class="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
+
+    <!-- ==========================================
+         VIEW 1: SENDER NODE (PC / MOBILE)
+         ========================================== -->
+    <section id="view-sender" class="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
+      <div class="lg:col-span-7 glass rounded-2xl p-4 sm:p-6 space-y-5">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3.5">
+          <div>
+            <h2 class="text-base sm:text-xl font-bold text-white flex items-center gap-2">
+              <i data-lucide="lock" class="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400"></i> Sender Dispatch
+            </h2>
+            <p class="text-[11px] sm:text-xs text-slate-400 mt-0.5">Encrypts locally in browser • Go offline right after Cloud Drop</p>
+          </div>
+          <span class="text-[10px] sm:text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">AES-256 + HMAC</span>
+        </div>
+
+        <!-- Step 1: File Dropzone + Remove File Button -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400">1. Select File</label>
+            <button type="button" id="btn-remove-file" onclick="clearSelectedFile()"
+              class="hidden text-xs px-2.5 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 font-medium flex items-center gap-1 transition">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Remove File
+            </button>
+          </div>
+          <label for="sender-file" id="file-dropzone-box" class="flex flex-col items-center justify-center border-2 border-dashed border-slate-700 hover:border-cyan-400 rounded-xl p-4 sm:p-6 cursor-pointer transition-all bg-slate-900/50 hover:bg-slate-900 text-center">
+            <i data-lucide="file-up" class="w-8 h-8 sm:w-10 sm:h-10 text-cyan-400 mb-2"></i>
+            <span id="file-label-primary" class="text-xs sm:text-sm font-medium text-slate-200 break-all px-2">Tap to select a file</span>
+            <span id="file-label-sub" class="text-[11px] text-slate-500 mt-1">All file types supported • End-to-End Encrypted</span>
+            <input id="sender-file" type="file" class="hidden" onchange="runSmartDecisionAnalyzer()" />
+          </label>
+        </div>
+
+        <!-- Step 2: Custom Split-Key Input -->
+        <div class="space-y-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <label class="text-xs font-semibold uppercase tracking-wider text-slate-400">2. Custom Key</label>
+            <button type="button" onclick="generateRandomCustomKey()" class="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-medium">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Auto-Generate Key
+            </button>
+          </div>
+          <input id="sender-custom-key" type="text" oninput="updateKeySplitPreview()" placeholder="Enter custom key (e.g., falcon-99)"
+            class="w-full bg-slate-900 border border-slate-700 focus:border-cyan-400 rounded-xl px-3.5 py-2.5 sm:py-3 text-sm font-mono text-white outline-none" />
+
+          <!-- Compact Split-Hash Derivation Preview -->
+          <div class="grid grid-cols-2 gap-2.5 pt-0.5">
+            <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5">
+              <div class="text-[10px] sm:text-[11px] text-slate-400 flex items-center justify-between">
+                <span>Routing Hash</span>
+                <i data-lucide="globe" class="w-3 h-3 text-purple-400 shrink-0"></i>
+              </div>
+              <div id="preview-routing-hash" class="text-[11px] font-mono text-purple-300 truncate mt-1">—</div>
+            </div>
+            <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5">
+              <div class="text-[10px] sm:text-[11px] text-slate-400 flex items-center justify-between">
+                <span>Local AES Key</span>
+                <i data-lucide="key-round" class="w-3 h-3 text-emerald-400 shrink-0"></i>
+              </div>
+              <div id="preview-crypto-key" class="text-[11px] font-mono text-emerald-300 truncate mt-1">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Self-Destruct TTL Selection -->
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">3. Cloud Auto-Delete Timer</label>
+          <select id="sender-ttl" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white outline-none">
+            <option value="120">2 Minutes (Fast Demo)</option>
+            <option value="300" selected>5 Minutes (Standard)</option>
+            <option value="1800">30 Minutes</option>
+            <option value="3600">1 Hour</option>
+          </select>
+        </div>
+
+        <!-- Encrypt & Upload Button -->
+        <button onclick="executeSenderPipeline()" id="btn-encrypt-upload"
+          class="w-full py-3 sm:py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-sm shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 transition-all">
+          <i data-lucide="shield-alert" class="w-4 h-4 sm:w-5 sm:h-5"></i> Encrypt & Send to Cloud
+        </button>
+
+        <!-- CLEAN, MINIMAL FILE SENT SUCCESS BANNER -->
+        <div id="sender-success-card" class="hidden p-3.5 rounded-xl bg-emerald-950/80 border border-emerald-500/60 text-emerald-200 flex items-center justify-center gap-2 text-sm font-semibold shadow-lg shadow-emerald-500/10">
+          <i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-400 shrink-0"></i>
+          <span>File Successfully Sent</span>
+        </div>
+
+        <!-- Error Banner -->
+        <div id="sender-error-box" class="hidden p-3 rounded-xl bg-rose-950/70 border border-rose-500/50 text-xs text-rose-200 font-mono"></div>
+      </div>
+
+      <!-- Right Column: Pipeline Stepper, QR Code & Smart Decision Engine -->
+      <div class="lg:col-span-5 space-y-4 sm:space-y-6">
+
+        <!-- 4-Stage Animated Pipeline Progress -->
+        <div class="glass rounded-2xl p-4 sm:p-6 space-y-3">
+          <h3 class="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+            <i data-lucide="activity" class="w-4 h-4 text-cyan-400"></i> Transmission Progress
+          </h3>
+          <div class="space-y-2" id="sender-stepper">
+            <div id="step-1" class="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400">
+              <i data-lucide="scan-line" class="w-4 h-4 shrink-0"></i> <span>1. Pre-Flight Analysis & Compression</span>
+            </div>
+            <div id="step-2" class="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400">
+              <i data-lucide="key" class="w-4 h-4 shrink-0"></i> <span>2. Split-Hash Key Derivation</span>
+            </div>
+            <div id="step-3" class="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400">
+              <i data-lucide="lock" class="w-4 h-4 shrink-0"></i> <span>3. AES-256 Encryption + HMAC Tag</span>
+            </div>
+            <div id="step-4" class="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400">
+              <i data-lucide="cloud-upload" class="w-4 h-4 shrink-0"></i> <span>4. Zero-Knowledge Cloud Drop</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Clean Single-Link QR Code Generator Card -->
+        <div id="qr-card" class="glass rounded-2xl p-4 sm:p-6 space-y-3.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs sm:text-sm font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-2">
+              <i data-lucide="qr-code" class="w-4 h-4"></i> Receiver QR Connect
+            </h3>
+            <span id="qr-status-badge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400">
+              Awaiting Key
+            </span>
+          </div>
+
+          <div class="flex flex-col sm:flex-row items-center gap-3.5">
+            <div id="qrcode-box" class="p-2.5 bg-white rounded-xl flex items-center justify-center w-[132px] h-[132px] shrink-0 shadow-inner">
+              <span class="text-[11px] text-slate-400 font-mono text-center px-2">Enter Key to show QR</span>
+            </div>
+
+            <div class="space-y-2.5 w-full overflow-hidden">
+              <p class="text-xs text-slate-300 text-center sm:text-left leading-relaxed">
+                Scan on the Receiver phone or copy the direct link below:
+              </p>
+              <div class="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2">
+                <input id="qr-url-preview" type="text" readonly value="—"
+                  class="w-full bg-transparent text-[11px] font-mono text-cyan-300 outline-none truncate" />
+              </div>
+              <button type="button" onclick="copyReceiverLink()" class="w-full py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition flex items-center justify-center gap-1.5">
+                <i data-lucide="copy" class="w-3.5 h-3.5"></i> <span id="copy-btn-text">Copy Receiver Link</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Compact Smart Decision Engine Card -->
+        <div class="glass rounded-2xl p-4 sm:p-6 space-y-3">
+          <h3 class="text-xs sm:text-sm font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-2">
+            <i data-lucide="cpu" class="w-4 h-4"></i> Smart Decision Engine
+          </h3>
+          <div class="space-y-2.5 text-xs">
+            <div class="flex justify-between items-center py-1.5 border-b border-slate-800">
+              <span class="text-slate-400">Compression Mode:</span>
+              <span id="decision-compression" class="font-mono text-slate-200">Awaiting File...</span>
+            </div>
+            <div class="flex justify-between items-center py-1.5 border-b border-slate-800">
+              <span class="text-slate-400">Suggested TTL:</span>
+              <span id="decision-ttl" class="font-mono text-slate-200">—</span>
+            </div>
+            <div>
+              <div class="flex justify-between mb-1">
+                <span class="text-slate-400">Key Strength Score:</span>
+                <span id="decision-score-text" class="font-mono font-bold text-emerald-400">0%</span>
+              </div>
+              <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                <div id="decision-score-bar" class="h-full bg-emerald-400 transition-all duration-300" style="width: 0%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ==========================================
+         VIEW 2: CLOUD COMMAND CENTER (PC MONITOR)
+         ========================================== -->
+    <section id="view-cloud" class="hidden space-y-4 sm:space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
+        <div class="lg:col-span-7 glass rounded-2xl p-4 sm:p-6 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div>
+              <h2 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                <i data-lucide="database-zap" class="w-5 h-5 text-purple-400"></i> Ephemeral Cloud Vault Storage
+              </h2>
+              <p class="text-xs text-slate-400">Multi-Vault Concurrent Storage • Auto-shreds on Read or TTL Expiry</p>
+            </div>
+            <span class="text-[11px] font-mono px-2.5 py-1 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+              DoD 2-Pass Shredder Armed
+            </span>
+          </div>
+
+          <div id="cloud-vaults-container" class="space-y-3.5">
+            <div class="text-center py-10 text-slate-500 text-xs sm:text-sm font-mono">
+              No active encrypted vaults in Cloud storage.
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Security & Telemetry Stream (Only in Cloud View) -->
+        <div class="lg:col-span-5 glass rounded-2xl p-4 sm:p-6 flex flex-col h-[380px] sm:h-[460px]">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
+            <h3 class="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+              <i data-lucide="terminal" class="w-4 h-4 text-cyan-400"></i> Cloud Telemetry & SOC Feed
+            </h3>
+            <span class="text-[11px] font-mono text-slate-500">Live Stream</span>
+          </div>
+          <div id="cloud-telemetry-log" class="flex-1 overflow-y-auto space-y-2 font-mono text-xs pr-1">
+            <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400">
+              [SYSTEM] Cloud Command Center initialized. Monitoring ephemeral vaults...
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         VIEW 3: RECEIVER NODE (PC / MOBILE)
+         ========================================== -->
+    <section id="view-receiver" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
+      <div class="lg:col-span-7 glass rounded-2xl p-4 sm:p-6 space-y-5">
+        <div class="border-b border-slate-800 pb-3.5">
+          <h2 class="text-base sm:text-xl font-bold text-white flex items-center gap-2">
+            <i data-lucide="unlock" class="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400"></i> Receiver Decryption Terminal
+          </h2>
+          <p class="text-[11px] sm:text-xs text-slate-400 mt-0.5">Fetches ciphertext from Cloud • Verifies HMAC • Decrypts & triggers Burn-on-Read</p>
+        </div>
+
+        <div id="qr-autofill-banner" class="hidden p-3 rounded-xl bg-cyan-950/60 border border-cyan-500/40 text-xs text-cyan-200 flex items-center justify-between">
+          <span><strong>QR Connected:</strong> Custom Key loaded!</span>
+          <span class="font-mono text-[10px] px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300">Ready</span>
+        </div>
+
+        <div class="space-y-2.5">
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400">Enter Custom Transfer Key</label>
+          <input id="receiver-custom-key" type="text" oninput="updateReceiverSplitPreview()" placeholder="Enter the Sender's custom key..."
+            class="w-full bg-slate-900 border border-slate-700 focus:border-emerald-400 rounded-xl px-3.5 py-2.5 sm:py-3 text-sm font-mono text-white outline-none" />
+
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5">
+            <div class="text-[10px] sm:text-[11px] text-slate-400">Derived Target Vault Routing Hash:</div>
+            <div id="receiver-routing-preview" class="text-xs font-mono text-purple-300 truncate mt-1">—</div>
+          </div>
+        </div>
+
+        <button onclick="executeReceiverPipeline()" id="btn-fetch-decrypt"
+          class="w-full py-3 sm:py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all">
+          <i data-lucide="download" class="w-4 h-4 sm:w-5 sm:h-5"></i> Fetch, Verify & Decrypt File
+        </button>
+
+        <!-- Receiver Alert / Shred Receipt Box -->
+        <div id="receiver-result-box" class="hidden rounded-xl p-3.5 border text-xs space-y-1.5"></div>
+      </div>
+
+      <!-- Receiver Decryption Stepper -->
+      <div class="lg:col-span-5 glass rounded-2xl p-4 sm:p-6 space-y-3">
+        <h3 class="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+          <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i> Verification & Burn Progress
+        </h3>
+        <div class="space-y-2">
+          <div id="r-step-1" class="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400">
+            <i data-lucide="search" class="w-4 h-4 shrink-0"></i> <span>1. Derive Routing Hash & Locate Vault</span>
+          </div>
+          <div id="r-step-2" class="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400">
+            <i data-lucide="file-check-2" class="w-4 h-4 shrink-0"></i> <span>2. Verify HMAC-SHA256 Authenticity Tag</span>
+          </div>
+          <div id="r-step-3" class="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400">
+            <i data-lucide="cpu" class="w-4 h-4 shrink-0"></i> <span>3. Local AES-256 Decryption</span>
+          </div>
+          <div id="r-step-4" class="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400">
+            <i data-lucide="flame" class="w-4 h-4 shrink-0"></i> <span>4. Trigger Cloud Burn-on-Read</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    var decisionState = { shouldCompress: false, securityScore: 80 };
+    var lanBaseUrl = window.location.origin;
+    var currentReceiverUrl = "";
+    var activeRole = "sender";
+
+    var ROUTE_SALT = "::AEGIS_ROUTE_SALT_2026";
+    var CRYPTO_SALT = "AEGIS_AES256_SALT_2026";
+    var MAC_SALT = "AEGIS_HMAC_SALT_2026";
+
+    // 1 MB Plaintext Chunk Size (Exact multiple of 16-byte AES block size)
+    // Produces 1,048,592 bytes (1MB + 16-byte PKCS7 padding) per encrypted chunk
+    var PLAIN_CHUNK_SIZE = 1024 * 1024;
+    var CIPHER_CHUNK_SIZE = PLAIN_CHUNK_SIZE + 16;
+
+    try {
+      if (window.lucide) window.lucide.createIcons();
+    } catch (e) {}
+
+    window.addEventListener("DOMContentLoaded", async () => {
+      try {
+        const res = await fetch("/api/network-info");
+        if (res.ok) {
+          const info = await res.json();
+          if (info.base_url) lanBaseUrl = info.base_url;
+        }
+      } catch (e) {}
+
+      const params = new URLSearchParams(window.location.search);
+      const role = params.get("role");
+      const keyParam = params.get("key");
+
+      if (["sender", "cloud", "receiver"].includes(role)) {
+        switchRole(role);
+      }
+      if (keyParam) {
+        switchRole("receiver");
+        const rInput = document.getElementById("receiver-custom-key");
+        rInput.value = keyParam;
+        updateReceiverSplitPreview();
+        document.getElementById("qr-autofill-banner").classList.remove("hidden");
+      }
+
+      syncCloudStateFromServer();
+      setInterval(syncCloudStateFromServer, 900);
+    });
+
+    function switchRole(role) {
+      activeRole = role;
+      ["sender", "cloud", "receiver"].forEach(r => {
+        document.getElementById(`view-${r}`).classList.add("hidden");
+        const tab = document.getElementById(`tab-${r}`);
+        tab.className = "role-tab flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all text-slate-400 hover:text-white";
+      });
+      document.getElementById(`view-${role}`).classList.remove("hidden");
+      const activeTab = document.getElementById(`tab-${role}`);
+      activeTab.className = "role-tab flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20";
+
+      const pill = document.getElementById("live-status-pill");
+      if (role === "cloud") {
+        pill.classList.remove("hidden");
+      } else {
+        pill.classList.add("hidden");
+      }
+
+      syncCloudStateFromServer();
+    }
+
+    function clearSelectedFile() {
+      const fileInput = document.getElementById("sender-file");
+      fileInput.value = "";
+
+      document.getElementById("file-label-primary").innerText = "Tap to select a file";
+      document.getElementById("file-label-sub").innerText = "All file types supported • End-to-End Encrypted";
+      document.getElementById("btn-remove-file").classList.add("hidden");
+
+      document.getElementById("decision-compression").innerText = "Awaiting File...";
+      document.getElementById("decision-compression").className = "font-mono text-slate-200";
+      document.getElementById("decision-ttl").innerText = "—";
+
+      document.getElementById("sender-success-card").classList.add("hidden");
+      document.getElementById("sender-error-box").classList.add("hidden");
+
+      [1, 2, 3, 4].forEach(n => highlightStep("step", n, "reset"));
+      runSmartDecisionAnalyzer();
+    }
+
+    function deriveSplitKeys(customKey) {
+      const routingHash = CryptoJS.SHA256(customKey + ROUTE_SALT).toString(CryptoJS.enc.Hex);
+      const aesKey = CryptoJS.PBKDF2(customKey, CRYPTO_SALT, { keySize: 256 / 32, iterations: 1000 });
+      const hmacKey = CryptoJS.PBKDF2(customKey, MAC_SALT, { keySize: 256 / 32, iterations: 1000 });
+      return { routingHash, aesKey, hmacKey };
+    }
+
+    function generateRandomCustomKey() {
+      const words = ["nebula", "falcon", "cipher", "vortex", "quantum", "aegis", "cobalt", "matrix"];
+      const w1 = words[Math.floor(Math.random() * words.length)];
+      const w2 = words[Math.floor(Math.random() * words.length)];
+      const num = Math.floor(1000 + Math.random() * 9000);
+      document.getElementById("sender-custom-key").value = `${w1}-${w2}-${num}`;
+      updateKeySplitPreview();
+      runSmartDecisionAnalyzer();
+    }
+
+    function renderQRCode(customKey, isUploaded = false) {
+      const qrBox = document.getElementById("qrcode-box");
+      const urlPreview = document.getElementById("qr-url-preview");
+      const badge = document.getElementById("qr-status-badge");
+
+      if (!customKey) {
+        qrBox.innerHTML = `<span class="text-[11px] text-slate-400 font-mono text-center px-2">Enter Key to show QR</span>`;
+        urlPreview.value = "—";
+        badge.innerText = "Awaiting Key";
+        badge.className = "text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400";
+        currentReceiverUrl = "";
+        return;
+      }
+
+      currentReceiverUrl = `${lanBaseUrl}/?role=receiver&key=${encodeURIComponent(customKey)}`;
+      urlPreview.value = currentReceiverUrl;
+
+      if (isUploaded) {
+        badge.innerText = "LIVE • SCAN NOW";
+        badge.className = "text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40";
+      } else {
+        badge.innerText = "Ready";
+        badge.className = "text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300";
+      }
+
+      qrBox.innerHTML = "";
+      try {
+        if (typeof QRCode !== "undefined") {
+          new QRCode(qrBox, {
+            text: currentReceiverUrl,
+            width: 112,
+            height: 112,
+            colorDark: "#020617",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.M
+          });
+          return;
+        }
+      } catch (err) {}
+
+      const img = document.createElement("img");
+      img.src = `https://api.qrserver.com/v1/create-qr-code/?size=112x112&data=${encodeURIComponent(currentReceiverUrl)}`;
+      img.alt = "Receiver QR Code";
+      img.className = "w-[112px] h-[112px]";
+      qrBox.appendChild(img);
+    }
+
+    function copyReceiverLink() {
+      const key = document.getElementById("sender-custom-key").value.trim();
+      if (!currentReceiverUrl && key) {
+        renderQRCode(key, false);
+      }
+      if (!currentReceiverUrl) {
+        return alert("Please enter or generate a Custom Key first.");
+      }
+
+      const urlInput = document.getElementById("qr-url-preview");
+      const btnText = document.getElementById("copy-btn-text");
+
+      function showCopiedFeedback() {
+        btnText.innerText = "Copied Receiver Link!";
+        setTimeout(() => { btnText.innerText = "Copy Receiver Link"; }, 2000);
+      }
+
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(currentReceiverUrl).then(showCopiedFeedback).catch(() => {
+          fallbackCopyText(currentReceiverUrl, urlInput, showCopiedFeedback);
+        });
+      } else {
+        fallbackCopyText(currentReceiverUrl, urlInput, showCopiedFeedback);
+      }
+    }
+
+    function fallbackCopyText(text, inputEl, callback) {
+      try {
+        const tempArea = document.createElement("textarea");
+        tempArea.value = text;
+        tempArea.style.position = "fixed";
+        tempArea.style.left = "-9999px";
+        document.body.appendChild(tempArea);
+        tempArea.focus();
+        tempArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(tempArea);
+        if (inputEl) inputEl.select();
+        callback();
+      } catch (err) {
+        prompt("Copy this Receiver URL manually:", text);
+      }
+    }
+
+    function updateKeySplitPreview() {
+      const key = document.getElementById("sender-custom-key").value.trim();
+      if (!key) {
+        document.getElementById("preview-routing-hash").innerText = "—";
+        document.getElementById("preview-crypto-key").innerText = "—";
+        renderQRCode("");
+        runSmartDecisionAnalyzer();
+        return;
+      }
+      const { routingHash, aesKey } = deriveSplitKeys(key);
+      document.getElementById("preview-routing-hash").innerText = routingHash;
+      document.getElementById("preview-crypto-key").innerText = aesKey.toString(CryptoJS.enc.Hex);
+      renderQRCode(key, false);
+      runSmartDecisionAnalyzer();
+    }
+
+    function updateReceiverSplitPreview() {
+      const key = document.getElementById("receiver-custom-key").value.trim();
+      document.getElementById("receiver-routing-preview").innerText = key
+        ? CryptoJS.SHA256(key + ROUTE_SALT).toString(CryptoJS.enc.Hex)
+        : "—";
+    }
+
+    function runSmartDecisionAnalyzer() {
+      const fileInput = document.getElementById("sender-file");
+      const key = document.getElementById("sender-custom-key").value.trim();
+      const file = fileInput.files && fileInput.files[0];
+      const removeBtn = document.getElementById("btn-remove-file");
+
+      if (file) {
+        removeBtn.classList.remove("hidden");
+        document.getElementById("file-label-primary").innerText = `${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+        document.getElementById("file-label-sub").innerText = `MIME: ${file.type || "application/octet-stream"}`;
+
+        const skipCompressExts = [".mp4", ".jpg", ".jpeg", ".png", ".zip", ".rar", ".7z", ".mp3", ".webp", ".pdf"];
+        const lowerName = file.name.toLowerCase();
+        const isAlreadyCompressed = skipCompressExts.some(ext => lowerName.endsWith(ext));
+        const isUnder2MB = file.size <= 2 * 1024 * 1024;
+
+        decisionState.shouldCompress = (!isAlreadyCompressed && isUnder2MB);
+        document.getElementById("decision-compression").innerText = decisionState.shouldCompress
+          ? "ENABLED (Deflate)"
+          : "BYPASSED (Direct)";
+        document.getElementById("decision-compression").className = decisionState.shouldCompress
+          ? "font-mono text-cyan-400 font-semibold"
+          : "font-mono text-amber-400";
+
+        document.getElementById("decision-ttl").innerText = file.size > 5 * 1024 * 1024
+          ? "15–30 Mins"
+          : "5 Mins";
+      } else {
+        removeBtn.classList.add("hidden");
+      }
+
+      let score = 0;
+      if (key.length >= 4) score += 35;
+      if (key.length >= 10) score += 30;
+      if (/[0-9]/.test(key) && /[^A-Za-z0-9]/.test(key)) score += 20;
+      if (file) score += 15;
+
+      decisionState.securityScore = Math.min(100, score);
+      document.getElementById("decision-score-text").innerText = `${decisionState.securityScore}%`;
+      document.getElementById("decision-score-bar").style.width = `${decisionState.securityScore}%`;
+    }
+
+    function highlightStep(prefix, stepNum, status) {
+      const el = document.getElementById(`${prefix}-${stepNum}`);
+      if (!el) return;
+      if (status === "active") {
+        el.className = "flex items-center gap-2.5 p-2.5 rounded-xl bg-cyan-950/60 border border-cyan-500/50 text-xs text-cyan-200 font-semibold animate-pulse";
+      } else if (status === "done") {
+        el.className = "flex items-center gap-2.5 p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-xs text-emerald-300 font-medium";
+      } else if (status === "error") {
+        el.className = "flex items-center gap-2.5 p-2.5 rounded-xl bg-rose-950/50 border border-rose-500/50 text-xs text-rose-300 font-medium";
+      } else {
+        el.className = "flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400";
+      }
+    }
+
+    // Fast Binary Uint8Array <-> CryptoJS WordArray Converters (Zero Strings Created)
+    function u8ToWordArray(u8) {
+      const len = u8.length;
+      const words = [];
+      for (let i = 0; i < len; i++) {
+        words[i >>> 2] |= (u8[i] & 0xff) << (24 - (i & 3) * 8);
+      }
+      return CryptoJS.lib.WordArray.create(words, len);
+    }
+
+    function wordArrayToU8(wordArray) {
+      const words = wordArray.words;
+      const sigBytes = wordArray.sigBytes;
+      const u8 = new Uint8Array(sigBytes);
+      for (let i = 0; i < sigBytes; i++) {
+        u8[i] = (words[i >>> 2] >>> (24 - (i & 3) * 8)) & 0xff;
+      }
+      return u8;
+    }
+
+    // =====================================================
+    // 3. SENDER PIPELINE: CHUNKED BINARY AES-256 + FORMDATA
+    // =====================================================
+    async function executeSenderPipeline() {
+      const fileInput = document.getElementById("sender-file");
+      const customKey = document.getElementById("sender-custom-key").value.trim();
+      const ttlSeconds = document.getElementById("sender-ttl").value;
+      const errorBox = document.getElementById("sender-error-box");
+      const successCard = document.getElementById("sender-success-card");
+
+      errorBox.classList.add("hidden");
+      successCard.classList.add("hidden");
+
+      if (!fileInput.files || !fileInput.files[0]) {
+        return alert("Please select a file first.");
+      }
+      if (!customKey) {
+        return alert("Please enter or generate a Custom Key.");
+      }
+
+      const file = fileInput.files[0];
+      [1, 2, 3, 4].forEach(n => highlightStep("step", n, "reset"));
+
+      let currentStep = 1;
+      try {
+        // STEP 1: Read raw binary ArrayBuffer (Zero string conversion!)
+        highlightStep("step", 1, "active");
+        const rawBuffer = await file.arrayBuffer();
+        let payloadBytes = new Uint8Array(rawBuffer);
+        let usedCompression = false;
+
+        if (decisionState.shouldCompress && window.pako && payloadBytes.length > 0) {
+          try {
+            payloadBytes = window.pako.deflate(payloadBytes);
+            usedCompression = true;
+          } catch (compErr) {
+            usedCompression = false;
+          }
+        }
+        highlightStep("step", 1, "done");
+
+        // STEP 2: Derive Split Keys
+        currentStep = 2;
+        highlightStep("step", 2, "active");
+        const { routingHash, aesKey, hmacKey } = deriveSplitKeys(customKey);
+        highlightStep("step", 2, "done");
+
+        // STEP 3: Chunked Binary AES-256 Encryption + Incremental HMAC-SHA256
+        currentStep = 3;
+        highlightStep("step", 3, "active");
+        const iv = CryptoJS.lib.WordArray.random(16);
+        const ivHex = iv.toString(CryptoJS.enc.Hex);
+
+        const metaJson = JSON.stringify({
+          filename: file.name,
+          mime: file.type || "application/octet-stream"
+        });
+        const encryptedMeta = CryptoJS.AES.encrypt(metaJson, aesKey, { iv: iv }).toString();
+
+        const hmacHasher = CryptoJS.algo.HMAC.create(CryptoJS.algo.SHA256, hmacKey);
+        const encryptedChunks = [];
+        const totalLen = payloadBytes.length;
+        let offset = 0;
+        let chunkIndex = 0;
+
+        do {
+          const slice = payloadBytes.subarray(offset, Math.min(offset + PLAIN_CHUNK_SIZE, totalLen));
+          const chunkWA = u8ToWordArray(slice);
+
+          // Derive unique per-chunk IV
+          const chunkIv = iv.clone();
+          chunkIv.words[3] ^= chunkIndex;
+
+          const encryptedWA = CryptoJS.AES.encrypt(chunkWA, aesKey, {
+            iv: chunkIv,
+            mode: CryptoJS.mode.CBC,
+            padding: CryptoJS.pad.Pkcs7
+          }).ciphertext;
+
+          hmacHasher.update(encryptedWA);
+          encryptedChunks.push(wordArrayToU8(encryptedWA));
+
+          offset += PLAIN_CHUNK_SIZE;
+          chunkIndex++;
+
+          // Yield every 4 MB so the browser UI stays smooth on large files
+          if (chunkIndex % 4 === 0) {
+            await new Promise(r => setTimeout(r, 0));
+          }
+        } while (offset < totalLen);
+
+        hmacHasher.update(ivHex + encryptedMeta);
+        const hmacTag = hmacHasher.finalize().toString(CryptoJS.enc.Hex);
+        highlightStep("step", 3, "done");
+
+        // STEP 4: Upload Binary Blob via FormData (Zero JSON string size limits)
+        currentStep = 4;
+        highlightStep("step", 4, "active");
+
+        const cipherBlob = new Blob(encryptedChunks, { type: "application/octet-stream" });
+        const formData = new FormData();
+        formData.append("cipher_file", cipherBlob, "vault.bin");
+        formData.append("routing_hash", routingHash);
+        formData.append("iv", ivHex);
+        formData.append("hmac_tag", hmacTag);
+        formData.append("encrypted_meta", encryptedMeta);
+        formData.append("ttl_seconds", String(ttlSeconds));
+        formData.append("compressed", usedCompression ? "1" : "0");
+        formData.append("security_score", String(decisionState.securityScore));
+
+        const res = await fetch("/api/upload", {
+          method: "POST",
+          body: formData
+        });
+
+        const resData = await res.json();
+        if (!res.ok) {
+          throw new Error(resData.error || "Cloud upload failed.");
+        }
+
+        highlightStep("step", 4, "done");
+        renderQRCode(customKey, true);
+        successCard.classList.remove("hidden");
+
+        if (resData.vaults) {
+          renderVaultCards(resData.vaults);
+        }
+        syncCloudStateFromServer();
+
+      } catch (err) {
+        highlightStep("step", currentStep, "error");
+        errorBox.innerText = `Error at Step ${currentStep}: ${err.message}`;
+        errorBox.classList.remove("hidden");
+      }
+    }
+
+    // =====================================================
+    // 4. RECEIVER PIPELINE: STREAM BINARY -> VERIFY -> DECRYPT
+    // =====================================================
+    async function executeReceiverPipeline() {
+      const customKey = document.getElementById("receiver-custom-key").value.trim();
+      if (!customKey) return alert("Please enter the Custom Key.");
+
+      const resultBox = document.getElementById("receiver-result-box");
+      resultBox.classList.add("hidden");
+      [1, 2, 3, 4].forEach(n => highlightStep("r-step", n, "reset"));
+
+      let currentRStep = 1;
+      try {
+        highlightStep("r-step", 1, "active");
+        const { routingHash, aesKey, hmacKey } = deriveSplitKeys(customKey);
+
+        const res = await fetch("/api/fetch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ routing_hash: routingHash })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          highlightStep("r-step", 1, "error");
+          resultBox.className = "rounded-xl p-3.5 border bg-rose-950/60 border-rose-500/50 text-rose-200 text-xs";
+          resultBox.innerHTML = `<strong>Vault Lookup Failed:</strong> ${data.error}`;
+          resultBox.classList.remove("hidden");
+          syncCloudStateFromServer();
+          return;
+        }
+        highlightStep("r-step", 1, "done");
+
+        const matchedVaults = data.vaults || [];
+        const vaultIdsToBurn = matchedVaults.map(v => v.vault_id);
+
+        // Download raw binary ciphertext streams and verify HMAC-SHA256
+        currentRStep = 2;
+        highlightStep("r-step", 2, "active");
+
+        const verifiedPayloads = [];
+        for (const v of matchedVaults) {
+          const binRes = await fetch(`/api/cipher/${v.vault_id}`);
+          if (!binRes.ok) throw new Error("Could not stream encrypted binary from Cloud.");
+          const cipherBytes = new Uint8Array(await binRes.arrayBuffer());
+
+          const hmacHasher = CryptoJS.algo.HMAC.create(CryptoJS.algo.SHA256, hmacKey);
+          const cipherChunksWA = [];
+
+          for (let offset = 0; offset < cipherBytes.length; offset += CIPHER_CHUNK_SIZE) {
+            const slice = cipherBytes.subarray(offset, Math.min(offset + CIPHER_CHUNK_SIZE, cipherBytes.length));
+            const chunkWA = u8ToWordArray(slice);
+            hmacHasher.update(chunkWA);
+            cipherChunksWA.push(chunkWA);
+          }
+
+          hmacHasher.update(v.iv + v.encrypted_meta);
+          const expectedHmac = hmacHasher.finalize().toString(CryptoJS.enc.Hex);
+
+          if (expectedHmac !== v.hmac_tag) {
+            highlightStep("r-step", 2, "error");
+            resultBox.className = "rounded-xl p-3.5 border bg-rose-950/80 border-rose-500 text-rose-200 text-xs";
+            resultBox.innerHTML = `<strong>Integrity Check Failed:</strong> Ciphertext signature mismatch.`;
+            resultBox.classList.remove("hidden");
+            return;
+          }
+
+          verifiedPayloads.push({ vault: v, cipherChunksWA: cipherChunksWA });
+        }
+        highlightStep("r-step", 2, "done");
+
+        // STEP 3: Decrypt Binary Chunks Locally & Trigger File Download
+        currentRStep = 3;
+        highlightStep("r-step", 3, "active");
+
+        const restoredNames = [];
+        for (const item of verifiedPayloads) {
+          const v = item.vault;
+          const baseIv = CryptoJS.enc.Hex.parse(v.iv);
+          const metaStr = CryptoJS.AES.decrypt(v.encrypted_meta, aesKey, { iv: baseIv }).toString(CryptoJS.enc.Utf8);
+          const meta = JSON.parse(metaStr);
+
+          const decryptedChunks = [];
+          let totalPlainBytes = 0;
+
+          for (let idx = 0; idx < item.cipherChunksWA.length; idx++) {
+            const chunkIv = baseIv.clone();
+            chunkIv.words[3] ^= idx;
+
+            const cipherParams = CryptoJS.lib.CipherParams.create({
+              ciphertext: item.cipherChunksWA[idx]
+            });
+
+            const decWA = CryptoJS.AES.decrypt(cipherParams, aesKey, {
+              iv: chunkIv,
+              mode: CryptoJS.mode.CBC,
+              padding: CryptoJS.pad.Pkcs7
+            });
+
+            const decU8 = wordArrayToU8(decWA);
+            decryptedChunks.push(decU8);
+            totalPlainBytes += decU8.length;
+
+            if (idx % 4 === 0 && idx > 0) {
+              await new Promise(r => setTimeout(r, 0));
+            }
+          }
+
+          // Reassemble full Uint8Array
+          let finalBytes = new Uint8Array(totalPlainBytes);
+          let writeOffset = 0;
+          for (const chunk of decryptedChunks) {
+            finalBytes.set(chunk, writeOffset);
+            writeOffset += chunk.length;
+          }
+
+          if (v.compressed && window.pako && finalBytes.length > 0) {
+            finalBytes = window.pako.inflate(finalBytes);
+          }
+
+          const outBlob = new Blob([finalBytes], { type: meta.mime });
+          const downloadUrl = URL.createObjectURL(outBlob);
+          const a = document.createElement("a");
+          a.href = downloadUrl;
+          a.download = meta.filename;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(downloadUrl), 5000);
+
+          restoredNames.push(meta.filename);
+        }
+        highlightStep("r-step", 3, "done");
+
+        // STEP 4: Trigger Burn-on-Read
+        currentRStep = 4;
+        highlightStep("r-step", 4, "active");
+        await fetch("/api/burn", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ vault_ids: vaultIdsToBurn })
+        });
+        highlightStep("r-step", 4, "done");
+
+        resultBox.className = "rounded-xl p-3.5 border border-emerald-500/60 bg-emerald-950/80 text-emerald-100 text-xs space-y-1";
+        resultBox.innerHTML = `
+          <div class="font-bold text-sm text-emerald-300">✅ File Decrypted & Cloud Vault Deleted!</div>
+          <div>Downloaded: <span class="font-mono">${restoredNames.join(", ")}</span></div>
+        `;
+        resultBox.classList.remove("hidden");
+        syncCloudStateFromServer();
+
+      } catch (err) {
+        highlightStep("r-step", currentRStep, "error");
+        resultBox.className = "rounded-xl p-3.5 border bg-rose-950/60 border-rose-500/50 text-rose-200 text-xs";
+        resultBox.innerHTML = `<strong>Decryption Failed:</strong> ${err.message}`;
+        resultBox.classList.remove("hidden");
+      }
+    }
+
+    async function syncCloudStateFromServer() {
+      try {
+        const res = await fetch("/api/state");
+        if (!res.ok) return;
+        const data = await res.json();
+
+        renderVaultCards(data.vaults || []);
+        if (data.logs && data.logs.length > 0) {
+          renderTelemetryLogs(data.logs);
+        }
+        if (data.banner_text && activeRole === "cloud") {
+          document.getElementById("live-status-pill").innerText = data.banner_text;
+        }
+
+        const s2c = document.getElementById("beam-s2c");
+        const c2r = document.getElementById("beam-c2r");
+        s2c.setAttribute("class", "");
+        c2r.setAttribute("class", "");
+        s2c.setAttribute("stroke", "#334155");
+        c2r.setAttribute("stroke", "#334155");
+
+        if (data.active_flow === "sender_to_cloud") {
+          s2c.setAttribute("stroke", "#22d3ee");
+          s2c.setAttribute("class", "flow-line-active");
+        } else if (data.active_flow === "cloud_to_receiver") {
+          c2r.setAttribute("stroke", "#34d399");
+          c2r.setAttribute("class", "flow-line-active");
+        }
+      } catch (e) {}
+    }
+
+    function renderVaultCards(vaults) {
+      document.getElementById("ribbon-vault-count").innerText = vaults.length;
+      const container = document.getElementById("cloud-vaults-container");
+
+      if (vaults.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-10 text-slate-500 text-xs sm:text-sm font-mono border border-dashed border-slate-800 rounded-xl">
+            Zero active files stored on Cloud PC.
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = vaults.map((v, idx) => `
+        <div class="p-3.5 sm:p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2.5">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span class="text-xs font-mono text-purple-400 font-bold">#${idx + 1} • VAULT: ${v.short_id}</span>
+              <div class="text-[11px] text-slate-400">
+                Route: <span class="font-mono text-cyan-300">${v.routing_hash_short}</span> • ${(v.size_bytes / 1024).toFixed(1)} KB
+              </div>
+            </div>
+            <div class="flex items-center">
+              <span class="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono">
+                TTL: ${v.ttl_remaining}s
+              </span>
+            </div>
+          </div>
+
+          <div class="bg-slate-950 p-2 rounded-lg border border-slate-800/80">
+            <div class="text-[10px] font-mono uppercase text-slate-500 mb-0.5">
+              Raw Ciphertext Hex (Unreadable by Cloud):
+            </div>
+            <div class="text-[11px] font-mono text-cyan-400/90 break-all leading-relaxed">${v.hex_preview} ...</div>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function renderTelemetryLogs(logs) {
+      const logBox = document.getElementById("cloud-telemetry-log");
+      const colorMap = {
+        info: "border-cyan-500/30 text-cyan-200 bg-cyan-950/30",
+        success: "border-emerald-500/30 text-emerald-200 bg-emerald-950/30",
+        warning: "border-amber-500/30 text-amber-200 bg-amber-950/30",
+        danger: "border-rose-500/40 text-rose-200 bg-rose-950/50"
+      };
+
+      logBox.innerHTML = logs.map(ev => `
+        <div class="p-2.5 rounded-lg border ${colorMap[ev.level] || colorMap.info}">
+          <span class="opacity-60">[${ev.timestamp}]</span> <strong>[${ev.type}]</strong> ${ev.message}
+        </div>
+      `).join("");
+    }
+  </script>
+</body>
+</html>
