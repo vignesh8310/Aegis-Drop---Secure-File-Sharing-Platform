@@ -110,3 +110,9 @@ AegisDrop/
 └── templates/
     └── index.html         # Unified responsive single-page client interface
 ```
+Screenshots
+<img width="1273" height="896" alt="image" src="https://github.com/user-attachments/assets/74a54ddb-a233-430e-a424-65ab89bda7cf" />
+<img width="1280" height="868" alt="image" src="https://github.com/user-attachments/assets/642ad264-1e45-4ca6-bc67-b1e746f2ca1f" />
+<img width="1306" height="783" alt="image" src="https://github.com/user-attachments/assets/0429e988-ef45-4c04-95f3-2a743ff8965b" />
+
+
